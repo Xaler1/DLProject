@@ -22,9 +22,7 @@ X_test = np.swapaxes(X_test, 1, 2)
 
 points_per_sample = 200
 X_n = X_train
-Y_train = Y_train
 X_t = X_test
-Y_test = Y_test
 
 X_train = np.zeros((X_n.shape[0], X_n.shape[1], points_per_sample))
 X_test = np.zeros((X_t.shape[0], X_t.shape[1], points_per_sample))
