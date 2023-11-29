@@ -11,47 +11,52 @@ import matplotlib.pyplot as plt
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-X_train = np.load('/content/drive/MyDrive/X_train.npy')
-X_test = np.load('/content/drive/MyDrive/X_test.npy')
-Y_train = pd.read_pickle('/content/drive/MyDrive/y_train.pickle')
-Y_test = pd.read_pickle('/content/drive/MyDrive/y_test.pickle')
+X_train_raw = np.load('/content/drive/MyDrive/X_train.npy')
+X_test_raw = np.load('/content/drive/MyDrive/X_test.npy')
+Y_train_raw = pd.read_pickle('/content/drive/MyDrive/y_train.pickle')
+Y_test_raw = pd.read_pickle('/content/drive/MyDrive/y_test.pickle')
 
-X_train = np.swapaxes(X_train, 1, 2)
-X_test = np.swapaxes(X_test, 1, 2)
+X_train_raw = np.swapaxes(X_train_raw, 1, 2)
+X_test_raw = np.swapaxes(X_test_raw, 1, 2)
 
 
 points_per_sample = 200
-X_n = X_train
-X_t = X_test
 
-X_train = np.zeros((X_n.shape[0], X_n.shape[1], points_per_sample))
-X_test = np.zeros((X_t.shape[0], X_t.shape[1], points_per_sample))
+X_train = np.zeros((X_train_raw.shape[0], X_train_raw.shape[1], points_per_sample))
+X_test = np.zeros((X_test_raw.shape[0], X_test_raw.shape[1], points_per_sample))
 
-downsample_factor = int(X_train.shape[2]/points_per_sample)
+downsample_factor = int(X_train_raw.shape[2]/points_per_sample)
+print(downsample_factor)
 for i in range(X_train.shape[0]):
-    if i % 1000 == 0:
+    if i % 100 == 0:
         print("Sample " + str(i) + " out of " + str(X_train.shape[0]))
     for j in range(X_train.shape[1]):
-        for k in range(points_per_sample):
-            X_train[i][j][k] = X_n[i][j][k*downsample_factor]
+        mean = np.mean(X_train_raw[i][j])
+        max = np.max(X_train_raw[i][j])
+        min = np.min(X_train_raw[i][j])
+        if max-mean > mean-min:
+            for k in range(points_per_sample):
+                X_train[i][j][k] = np.max(X_train_raw[i][j][k*downsample_factor:(k+1)*downsample_factor])
+        else:
+            for k in range(points_per_sample):
+                X_train[i][j][k] = np.min(X_train_raw[i][j][k*downsample_factor:(k+1)*downsample_factor])
 
 for i in range(X_test.shape[0]):
+    if i % 100 == 0:
+        print("Sample " + str(i) + " out of " + str(X_test.shape[0]))
     for j in range(X_test.shape[1]):
-        for k in range(points_per_sample):
-            X_test[i][j][k] = X_t[i][j][k*downsample_factor]
+        mean = np.mean(X_test_raw[i][j])
+        max = np.max(X_test_raw[i][j])
+        min = np.min(X_test_raw[i][j])
+        if max-mean > mean-min:
+            for k in range(points_per_sample):
+                X_test[i][j][k] = np.max(X_test_raw[i][j][k*downsample_factor:(k+1)*downsample_factor])
+        else:
+            for k in range(points_per_sample):
+                X_test[i][j][k] = np.min(X_test_raw[i][j][k*downsample_factor:(k+1)*downsample_factor])
 
-Y_train = Y_train.to_numpy()
-Y_test = Y_test.to_numpy()
-
-
-def convertToEncoding(input_array, len_one_hot):
-    output = np.zeros((input_array.shape[0], input_array.shape[1], len_one_hot))
-    idx_array = (input_array*len_one_hot/2 + len_one_hot/2).astype(int)
-    idx_array[idx_array>len_one_hot-1] = len_one_hot-1
-    idx_array[idx_array<0] = 0
-    for i in range(input_array.shape[0]):
-        output[:, i, idx_array[:, i]] = 1
-    return output
+Y_train = Y_train_raw.to_numpy()
+Y_test = Y_test_raw.to_numpy()
 
 
 def convertLabelEncoding(label, diseases):
@@ -68,22 +73,22 @@ E = 32
 diseases = ['HYP', 'MI', 'NORM', 'STTC', 'CD']
 num_epochs = 10000
 learning_rate = 1e-8
-T = points_per_sample
+T = 200
 batch_size = 24
-max_norm = 2.0
 num_channels = 12
 
 
 class Model(nn.Module):
     def __init__(self):
         super(Model, self).__init__()
-        self.num_heads = 2
-        self.encoder = nn.Transformer(d_model=E, nhead=self.num_heads, batch_first=True).encoder.to(device)
-        self.linear = nn.Linear(12 * E * T, len(diseases))
+        self.num_heads = 1
+        self.encoder = nn.Transformer(d_model=12*T, nhead=self.num_heads, batch_first=True).encoder.to(device)
+        self.linear = nn.Linear(12 * T, len(diseases))
 
     def forward(self, x):
-        input = torch.flatten(x, start_dim=1, end_dim=2)
-        encoder_output = torch.flatten(self.encoder(input), start_dim=1)
+        input = torch.flatten(x, start_dim=1)
+        pre_flatten_encoder_output = self.encoder(input)
+        encoder_output = torch.flatten(pre_flatten_encoder_output, start_dim=1)
         output = self.linear(encoder_output)
 
         return output
@@ -92,7 +97,7 @@ class Model(nn.Module):
 model = Model().to(device)
 
 loss_fn = nn.CrossEntropyLoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate)
 
 # Create Lists for Training and Validation Loss/Error to be Plotted
 update_number = []
@@ -103,7 +108,7 @@ validation_error_list = []
 
 # Training Run
 for i in range(num_epochs):
-    x = np.zeros((batch_size, num_channels, T, E))
+    x = np.zeros((batch_size, num_channels, T))
     y = np.zeros((batch_size, len(diseases)))
 
     # Randomly Select Samples for the Minibatch
@@ -112,7 +117,7 @@ for i in range(num_epochs):
         index = random.randrange(0, X_train.shape[0])
         try:
             if Y_train[index][0] in diseases:
-                x[j] = convertToEncoding(X_train[index], E)
+                x[j] = X_train[index]
                 y[j] = convertLabelEncoding(Y_train[index][0], diseases)
                 j += 1
         except:
@@ -133,14 +138,12 @@ for i in range(num_epochs):
     train_error = 1 - num_correct / batch_size
 
     optimizer.zero_grad()
-    train_loss.retain_grad()
     train_loss.backward()
-    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
     optimizer.step()
 
     test_batch_size = 10
 
-    x = np.zeros((test_batch_size, num_channels, T, E))
+    x = np.zeros((test_batch_size, num_channels, T))
     y = np.zeros((test_batch_size, len(diseases)))
 
     # Randomly Select Samples for the Test Batch
@@ -149,7 +152,7 @@ for i in range(num_epochs):
         index = random.randrange(0, X_test.shape[0])
         try:
             if Y_test[index][0] in diseases:
-                x[j] = convertToEncoding(X_test[index], E)
+                x[j] = X_test[index]
                 y[j] = convertLabelEncoding(Y_test[index][0], diseases)
                 j += 1
         except:
