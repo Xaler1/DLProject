@@ -1,3 +1,8 @@
 99_Ref/
 ecg_ptbxl_benchmarking/
 ptb-xl-a-large-publicly-available-electrocardiography-dataset-1.0.1/
+src/X_test.npy
+src/X_train.npy
+src/y_test.pickle
+src/y_train.pickle
+src/runs/
