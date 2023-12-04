@@ -2,8 +2,8 @@ from functools import partial
 from typing import Any, Callable, List, Optional, Type, Union
 import torch, torch.nn as nn
 from torch import Tensor
-
-
+# import transformer
+# from transformer import Transformer
 """Code taken from https://github.com/pytorch/vision/blob/main/torchvision/models/resnet.py
 Altered for our purposes. Replaced all 2d functions with 1d functions"""
 
@@ -182,3 +182,5 @@ def _resnet(
 
 def resnet101(**kwargs: Any) -> ResNet:
     return _resnet(Bottleneck, [3,4,23,3], progress=False)
+
+resnet101()

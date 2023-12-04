@@ -4,7 +4,6 @@ import numpy as np,  matplotlib.pyplot as plt, pandas as pd, pickle
 from torch.nn.functional import pad
 from ResnetModel import *
 
-
 class PositionalEncoding(nn.Module):
     def __init__(self, max_len=1000, emb_size=12):
         super(PositionalEncoding, self).__init__()
@@ -21,17 +20,19 @@ class PositionalEncoding(nn.Module):
         return x + self.pe[:x.size(0), :]
 
 class Transformer(nn.Transformer):
-    def __init__(self, emb_size=12, nhead=6, depth=6, hidden_size=128, seq_length=1000, num_classes=6):
+    def __init__(self, emb_size=12, nhead=6, depth=6, hidden_size=128, seq_length=1000, num_classes=6, drop_p = 0.1):
         super(Transformer, self).__init__(d_model=emb_size, nhead=nhead, num_encoder_layers=depth, num_decoder_layers=depth, dim_feedforward=hidden_size)
         self.seq_len = seq_length
         self.pos_encoder = PositionalEncoding(seq_length, emb_size)
-        self.decoder = nn.Linear(emb_size, 128)
-        self.bndecoder = nn.BatchNorm1d(128*seq_length)
-        self.linear1 = nn.Linear(128*seq_length, 512)
-        self.bn1 = nn.BatchNorm1d(512)
-        self.linear2 = nn.Linear(512, 1024)
-        self.bn2 = nn.BatchNorm1d(1024)
-        self.linear3 = nn.Linear(1024, num_classes)
+        self.decoder = nn.Linear(emb_size, 64)
+        self.bndecoder = nn.BatchNorm1d(64*seq_length)
+        self.linear1 = nn.Linear(64*seq_length, 256)
+        self.bn1 = nn.BatchNorm1d(256)
+        self.drop1 = nn.Dropout1d(drop_p)
+        self.linear2 = nn.Linear(256, 512)
+        self.bn2 = nn.BatchNorm1d(512)
+        self.drop2 = nn.Dropout1d(drop_p)
+        self.linear3 = nn.Linear(512, num_classes)
 
         
     def __forward_impl(self, x):
@@ -47,10 +48,12 @@ class Transformer(nn.Transformer):
         x = self.linear1(x)
         x = self.bn1(x)
         x = torch.relu(x)
+        x = self.drop1(x)
         x = self.linear2(x)
         
         x = self.bn2(x)
         x = torch.relu(x)
+        x = self.drop2(x)
         
         x = self.linear3(x)
         x = torch.sigmoid(x)
