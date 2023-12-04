@@ -6,3 +6,4 @@ src/X_train.npy
 src/y_test.pickle
 src/y_train.pickle
 src/runs/
+src/resnet101_model.pickle

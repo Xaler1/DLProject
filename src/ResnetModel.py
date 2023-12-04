@@ -1,9 +1,8 @@
 from functools import partial
 from typing import Any, Callable, List, Optional, Type, Union
-
-import torch
-import torch.nn as nn
+import torch, torch.nn as nn
 from torch import Tensor
+
 
 """Code taken from https://github.com/pytorch/vision/blob/main/torchvision/models/resnet.py
 Altered for our purposes. Replaced all 2d functions with 1d functions"""
