@@ -9,3 +9,6 @@ src/runs/
 src/resnet101_model.pickle
 src/data/*
 runs/*
+src/superclassmodel.pickle
+src/DiagModelResults
+src/superclassmodelres
