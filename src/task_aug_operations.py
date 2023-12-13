@@ -45,7 +45,7 @@ class _Operation(nn.Module):
         initial_magnitude = [initial_magnitude] * n_classes
 
 
-        if initial_magnitude is not None and learn_magnitude:
+        if learn_magnitude:
             self.magnitude = nn.Parameter(torch.Tensor(initial_magnitude))
         else:
             self.magnitude = torch.Tensor(initial_magnitude)
@@ -174,9 +174,9 @@ class RandCrop(_Operation):
                  temperature=0.1,
                  num_classes=2
                  ):
-        super().__init__(rand_crop, initial_magnitude, learn_magnitude,
+        super().__init__(rand_crop, initial_magnitude, False,
                          learn_probability, temperature, num_classes)
-        self.magnitude = nn.Parameter(torch.Tensor([initial_magnitude]))
+        self.magnitude = torch.Tensor([initial_magnitude])
 
     def forward(self,input, label):
 

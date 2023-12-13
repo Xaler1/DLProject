@@ -78,7 +78,7 @@ def get_hyper_train_flat(hyper_params):
     return torch.cat([p.view(-1) for p in hyper_params])
 
 def gather_flat_grad(loss_grad):
-    return torch.cat([p.reshape(-1) for p in loss_grad if p is not None])
+    return torch.cat([p.reshape(-1) for p in loss_grad])
 
 def neumann_hyperstep_preconditioner(d_val_loss_d_theta, d_train_loss_d_w, elementary_lr, num_neumann_terms, model):
     preconditioner = d_val_loss_d_theta.detach()
@@ -137,10 +137,9 @@ def hyper_step(model, aug, hyper_params, train_loader, optimizer, val_loader, el
 
     preconditioner = neumann_hyperstep_preconditioner(d_val_loss_d_theta, d_train_loss_d_w, elementary_lr,neum_steps, model)
 
-
     indirect_grad = gather_flat_grad(
-        grad(d_train_loss_d_w, hyper_params, grad_outputs=preconditioner.view(-1), allow_unused=True))
-    hypergrad = indirect_grad # + direct_Grad
+        grad(d_train_loss_d_w, hyper_params, grad_outputs=preconditioner.view(-1)))
+    hypergrad = indirect_grad
 
     zero_hypergrad(hyper_params)
     return hypergrad
