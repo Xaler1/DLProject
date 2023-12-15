@@ -1,3 +1,13 @@
+*.pickle
+*.tar*
+*.pth*
+*.npz*
+*.npy*
+*.csv*
+/home/ubuntu/Anirudh/src/Diag/
+Anirudh/src/training_logs/*
+/home/ubuntu/Anirudh/dataset/*
+*.pkl*
 99_Ref/
 ecg_ptbxl_benchmarking/
 ptb-xl-a-large-publicly-available-electrocardiography-dataset-1.0.1/
