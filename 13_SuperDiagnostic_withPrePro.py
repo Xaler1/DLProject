@@ -1,15 +1,15 @@
 
 import torch, torch.nn as nn, torch.optim as optim
 from torchmetrics.classification import MultilabelAUROC
-import numpy as np,  matplotlib.pyplot as plt, pandas as pd, pickle
+import numpy as np,  matplotlib.pyplot as plt, pandas as pd, pickle, os
 from ResnetModel import *
 from sklearn.preprocessing import StandardScaler
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Device: {device}")
 
-model_name = 'Diagnostic'
-seq_len = 600
+model_name = 'superdiagnostic'
+seq_len = 200
 
 X_train = np.load(f'/home/ubuntu/Anirudh/dataset/Datasets/{model_name}Train.npz')['X_train']
 X_train = torch.from_numpy(np.transpose(X_train, (0, 2, 1))).float()
@@ -28,7 +28,7 @@ def preprocess_signals(X_train, X_validation):
     ss.fit(np.vstack(X_train).flatten()[:,np.newaxis].astype(float))
     
     # Save Standardizer data
-    with open(f'./{model_name}-{seq_len}standard_scaler.pkl', 'wb') as ss_file:
+    with open(f'./Scalers/{model_name}-{seq_len}standard_scaler.pkl', 'wb') as ss_file:
         pickle.dump(ss, ss_file)
 
     return apply_standardizer(X_train, ss), apply_standardizer(X_validation, ss)
@@ -57,31 +57,44 @@ test_loader = torch.utils.data.DataLoader(test_dataset, batch_size = 256, shuffl
 ml_auroc = MultilabelAUROC(num_labels=y_train.shape[1], average="macro", thresholds=None)
 
 
-lr_max = 0.135/10
+if not os.path.exists(f'{model_name}_{seq_len}SeqLenModel.pth'):
+    print('Creating New Model')
+    model = model = ResNet(Bottleneck, [3, 4, 23, 3], num_classes=y_train.shape[1]).float().to(device)
+    current_epoch = 0
+    learning_rates = []
+    train_losses = []
+    test_losses = []
+else:
+    with open(f'{model_name}_{seq_len}SeqLenModel.pth', 'rb') as f:
+        model = pickle.load(f)
+    with open(f'{model_name}_{seq_len}losses.pickle', 'rb') as f:
+        train_losses, test_losses, learning_rates = pickle.load(f)
+        current_epoch = len(test_losses)
+    print(f'Loading pretrained model, continuing from epoch {current_epoch}')
+
+
+lr_max = 2e-4/10
 lr = lr_max
 criterion = nn.BCELoss()
-epochs = 150
-model = model = ResNet(Bottleneck, [3, 4, 23, 3], num_classes=y_train.shape[1]).float()
-model = model.to(device)
+epochs = 300
+
 optimizer = optim.Adam(model.parameters(), lr = lr, weight_decay=1e-4)
 
 for g in optimizer.param_groups:
     g['lr'] = lr
 
-t = 0
+t = current_epoch*len(train_loader)
 steps_per_epoch = len(train_loader)
 T_max = steps_per_epoch*epochs
 T_0 = T_max/5 
-learning_rates = []
-train_losses = []
-test_losses = []
 
-for epoch in range(epochs):
+
+for epoch in range(current_epoch, epochs):
     for i, (signal, labels) in enumerate(train_loader):
-        idx = np.random.randint(0, 1000-seq_len)
-        signal = (signal[:,:,idx:idx+seq_len]).to(device); labels = labels.to(device)
+        idx = np.random.randint(0, 1000-seq_len+1)
+        signal_sam = (signal[:,:,idx:idx+seq_len]).to(device); labels = labels.to(device)
         optimizer.zero_grad()
-        outputs = model(signal)
+        outputs = model(signal_sam)
         loss = criterion(outputs, labels)
         loss.backward()
         nn.utils.clip_grad_norm_(model.parameters(), 5)
@@ -106,11 +119,11 @@ for epoch in range(epochs):
     test_auc = 0
     with torch.no_grad():
         for i, (signal, labels) in enumerate(test_loader):
-            idx = np.random.randint(0, 1000-seq_len)
-            signal = (signal[:,:,idx:idx+seq_len]).to(device); labels = labels.to(device)
-            outputs = model(signal)
+            idx = 0
+            signal_sam = (signal[:,:,idx:]).to(device); labels = labels.to(device)
+            outputs = model(signal_sam)
             test_auc += ml_auroc(outputs, (labels>0).int())
-        test_auc /= len(test_loader)
+        test_auc /= (len(test_loader))
         test_losses.append(test_auc)
         print("___________________________________________________\n")
         print(f"Epoch:  {epoch}/{epochs}  |  Train loss: {loss.item():.4f}  |  Train AUC: {train_AUC:.4f}  |  Test AUC: {test_auc}")
