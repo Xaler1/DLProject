@@ -74,20 +74,6 @@ else:
     print(f'Loading pretrained model, continuing from epoch {current_epoch}')
 
 
-lr_max = 2e-4/10
-lr = lr_max
-criterion = nn.BCELoss()
-epochs = 300
-
-optimizer = optim.Adam(model.parameters(), lr = lr, weight_decay=1e-4)
-
-for g in optimizer.param_groups:
-    g['lr'] = lr
-
-t = current_epoch*len(train_loader)
-steps_per_epoch = len(train_loader)
-T_max = steps_per_epoch*epochs
-T_0 = T_max/5 
 
 kfold = KFold(n_splits=8, shuffle=True)
 
@@ -109,6 +95,11 @@ for fold, (train_ids, test_ids) in enumerate(kfold.split(train_dataset)):
     lr = lr_max
     criterion = nn.BCELoss()
     epochs = 75
+
+    t = 0
+    steps_per_epoch = len(train_loader)
+    T_max = steps_per_epoch*epochs
+    T_0 = T_max/5 
 
     optimizer = optim.Adam(model.parameters(), lr = lr, weight_decay=1e-4)
 
