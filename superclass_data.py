@@ -29,17 +29,17 @@ Y.loc[:, ['Diag','Form', 'Rhythm']].fillna(0, inplace=True)
 Y.fillna(0, inplace=True)
 
 Y_train = Y[(Y.strat_fold != 10)&(Y.strat_fold!= 9)].reset_index()
-X_train = X[np.where((Y.strat_fold != 10)&(Y.strat_fold!= 9))]
+X_train1 = X[np.where((Y.strat_fold != 10)&(Y.strat_fold!= 9))]
 
 Y_val = Y[Y.strat_fold == 9].reset_index()
-X_val = X[np.where(Y.strat_fold ==9)]
+X_val1 = X[np.where(Y.strat_fold ==9)]
 
 Y_test = Y[Y.strat_fold == 10].reset_index()
-X_test = X[np.where(Y.strat_fold == 10)]
+X_test1 = X[np.where(Y.strat_fold == 10)]
 
-np.savez_compressed('./X_train.npz', X_train)
-np.savez_compressed('./X_val.npz', X_val)
-np.savez_compressed('./X_test.npz', X_test)
-Y_train.to_csv('./Y_train.csv')
-Y_val.to_csv('./Y_val.csv')
-Y_test.to_csv('./Y_test.csv')
+np.savez_compressed('./SuperclassTrain.npz', X_train = X_train1, y_train = Y_train.to_numpy(), allow_pickle = True)
+np.savez_compressed('./SuperclassVal.npz', X_val = X_val1, y_val = Y_val.to_numpy(), allow_pickle = True)
+np.savez_compressed('./SuperclassTest.npz', X_test = X_test1, y_test = Y_test.to_numpy(), allow_pickle = True)
+# Y_train.to_csv('./Y_train.csv')
+# Y_val.to_csv('./Y_val.csv')
+# Y_test.to_csv('./Y_test.csv')

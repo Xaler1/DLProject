@@ -9,7 +9,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Device: {device}")
 
 model_name = 'diagnostic'
-seq_len = 1000
+seq_len = 250
 
 X_train = np.load(f'/home/ubuntu/Anirudh/dataset/Datasets/{model_name}Train.npz')['X_train']
 X_train = torch.from_numpy(np.transpose(X_train, (0, 2, 1))).float()
