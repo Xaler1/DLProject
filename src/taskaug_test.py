@@ -142,6 +142,8 @@ def train(
                 running_loss = 0.0
                 last_i = i
 
+            quit()
+
     return train_losses
 
 

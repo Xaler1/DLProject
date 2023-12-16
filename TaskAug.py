@@ -38,13 +38,9 @@ class TaskAug(nn.Module):
         if not self.batch_first:
             x = x.swapaxes(0, 1)
 
-        x = x.swapaxes(1, 2)
-
-        for stage in self.stages:
-            print("Internal x shape", x.shape)
+        for i, stage in enumerate(self.stages):
             x = stage(x, y)
 
-        x = x.swapaxes(1, 2)
         if not self.batch_first:
             x = x.swapaxes(0, 1)
 
@@ -100,7 +96,7 @@ def neumann_hyperstep_preconditioner(d_val_loss_d_theta, d_train_loss_d_w, eleme
     return elementary_lr * preconditioner
 
 
-def hyper_step(model, aug, hyper_params, train_loader, optimizer, val_loader, elementary_lr, neum_steps, criterion):
+def hyper_step(model, aug, hyper_params, train_loader, optimizer, val_loader, elementary_lr, neum_steps, criterion, SEQ_LEN):
     zero_hypergrad(hyper_params)
     num_weights = sum(p.numel() for p in model.parameters())
 
@@ -109,6 +105,8 @@ def hyper_step(model, aug, hyper_params, train_loader, optimizer, val_loader, el
 
     for batch_idx, (x, y) in enumerate(train_loader):
         x = x.to(device)
+        idx = np.random.randint(0, 1000-SEQ_LEN+1)
+        x = (x[:,:,idx:idx+SEQ_LEN]).to(device)
         y = y.to(device)
         x = aug(x, y)
 

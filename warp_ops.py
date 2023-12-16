@@ -109,7 +109,7 @@ class ResizeTransformTime(nn.Module):
 
 
 class RandWarpAug(nn.Module):
-    def __init__(self, inshape, int_steps = 7, int_downsize = 4, smooth_size = 51):
+    def __init__(self, inshape, int_steps = 7, int_downsize = 5, smooth_size=51):
 
         super().__init__()
 
@@ -135,7 +135,6 @@ class RandWarpAug(nn.Module):
         self.smooth_kernel = torch.from_numpy(filt)
 
     def forward(self, source, flow_mag):
-        print("source shape before ", source.shape)
         x = source
 
         flow_field = flow_mag*torch.randn(x.shape[0], 1, self.inshape[0]).to(x.device)
@@ -155,11 +154,10 @@ class RandWarpAug(nn.Module):
             if self.fullsize:
                 pos_flow = self.fullsize(pos_flow)
 
+
         # DO SOME SMOOTHING OF THE FLOW FIELD HERE
         pos_flow = F.conv1d(pos_flow, self.smooth_kernel.view(1,1,self.smooth_size).to(x.device), padding=self.smooth_pad, stride=1)
 
-        print("source shape", source.shape)
-        print("pos_flow shape", pos_flow.shape)
         # warp image with flow field
         y_source = self.transformer(source, pos_flow)
         return y_source
