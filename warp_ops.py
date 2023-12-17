@@ -1,17 +1,17 @@
-#### Adapted from https://github.com/voxelmorph/voxelmorph ####
-
+#########################################################
+# Taken from https://github.com/aniruddhraghu/ecg_aug #
+#########################################################
 
 import numpy as np
 import torch
 from torch import nn
-from torch.distributions import RelaxedBernoulli, Bernoulli
 
 import torch.nn.functional as F
 
 from scipy.ndimage import gaussian_filter1d
 
 KSIZE = 15
-PADSIZE = (KSIZE-1) //2
+PADSIZE = (KSIZE - 1) // 2
 DOWN_FACTOR = 2
 
 
@@ -38,6 +38,7 @@ class SpatialTransformer(nn.Module):
         # than they need to be. so far, there does not appear to be an elegant solution.
         # see: https://discuss.pytorch.org/t/how-to-register-buffer-without-polluting-state-dict
         self.register_buffer('grid', grid)
+
     #         print("grid shape", grid.shape)
 
     def forward(self, src, flow):
@@ -50,8 +51,8 @@ class SpatialTransformer(nn.Module):
             new_locs[:, i, ...] = 2 * (new_locs[:, i, ...] / (shape[i] - 1) - 0.5)
 
         if len(src.shape) == 3:
-            src = src.unsqueeze(-1).repeat(1,1,1,2)
-            new_locs = new_locs.unsqueeze(-1).repeat(1,1,1,2)
+            src = src.unsqueeze(-1).repeat(1, 1, 1, 2)
+            new_locs = new_locs.unsqueeze(-1).repeat(1, 1, 1, 2)
 
         # move channels dim to last position
         # also not sure why, but the channels need to be reversed
@@ -64,7 +65,6 @@ class SpatialTransformer(nn.Module):
 
         samp = F.grid_sample(src, new_locs, align_corners=True, mode=self.mode)
         return samp.squeeze(2)
-
 
 
 class VecInt(nn.Module):
@@ -109,26 +109,26 @@ class ResizeTransformTime(nn.Module):
 
 
 class RandWarpAug(nn.Module):
-    def __init__(self, inshape, int_steps = 7, int_downsize = 5, smooth_size=51):
+    def __init__(self, inshape, int_steps=7, int_downsize=5, smooth_size=51):
 
         super().__init__()
 
-        ndims=1
-        self.inshape=inshape
+        ndims = 1
+        self.inshape = inshape
         resize = int_steps > 0 and int_downsize > 1
-        self.resize = ResizeTransformTime(1/int_downsize, ndims) if resize else None
+        self.resize = ResizeTransformTime(1 / int_downsize, ndims) if resize else None
         self.fullsize = ResizeTransformTime(int_downsize, ndims) if resize else None
 
         # configure optional integration layer for diffeomorphic warp
-        down_shape = [inshape[0]//int_downsize]
+        down_shape = [inshape[0] // int_downsize]
         self.integrate = VecInt(down_shape, int_steps) if int_steps > 0 else None
 
         # configure transformer
         self.transformer = SpatialTransformer(inshape)
 
         # set up smoothing filter
-        self.smooth_size= smooth_size
-        self.smooth_pad = smooth_centre = (smooth_size-1)//2
+        self.smooth_size = smooth_size
+        self.smooth_pad = smooth_centre = (smooth_size - 1) // 2
         smooth_kernel = np.zeros(smooth_size)
         smooth_kernel[smooth_centre] = 1
         filt = gaussian_filter1d(smooth_kernel, smooth_centre).astype(np.float32)
@@ -137,7 +137,7 @@ class RandWarpAug(nn.Module):
     def forward(self, source, flow_mag):
         x = source
 
-        flow_field = flow_mag*torch.randn(x.shape[0], 1, self.inshape[0]).to(x.device)
+        flow_field = flow_mag * torch.randn(x.shape[0], 1, self.inshape[0]).to(x.device)
 
         # resize flow for integration
         pos_flow = flow_field
@@ -154,32 +154,30 @@ class RandWarpAug(nn.Module):
             if self.fullsize:
                 pos_flow = self.fullsize(pos_flow)
 
-
         # DO SOME SMOOTHING OF THE FLOW FIELD HERE
-        pos_flow = F.conv1d(pos_flow, self.smooth_kernel.view(1,1,self.smooth_size).to(x.device), padding=self.smooth_pad, stride=1)
+        pos_flow = F.conv1d(pos_flow, self.smooth_kernel.view(1, 1, self.smooth_size).to(x.device),
+                            padding=self.smooth_pad, stride=1)
 
         # warp image with flow field
         y_source = self.transformer(source, pos_flow)
         return y_source
 
-class DispAug(nn.Module):
-    def __init__(self, inshape, int_steps = 7, int_downsize = 4, flow_mag=1.0, smooth_size = 51, use_label=False):
 
+class DispAug(nn.Module):
+    def __init__(self, inshape, int_steps=7, int_downsize=4, flow_mag=1.0, smooth_size=51, use_label=False):
         super().__init__()
 
-        ndims=1
-        self.inshape=inshape
+        ndims = 1
+        self.inshape = inshape
 
         # configure transformer
         self.transformer = SpatialTransformer(inshape)
 
-
     def forward(self, source, mag):
         BS, C, L = source.shape
-        x=source
+        x = source
 
-        disps = (-2*mag)*(torch.rand(BS).to(x.device).view(BS,1,1)) + mag
-        # print("dispmag", disps)
+        disps = (-2 * mag) * (torch.rand(BS).to(x.device).view(BS, 1, 1)) + mag
         pos_flow = torch.ones(BS, 1, L).to(x.device) * disps.view(BS, 1, 1)
 
         # warp image with flow field

@@ -1,34 +1,21 @@
-import torch
-from torch import nn
-from torch.distributions import RelaxedBernoulli, Bernoulli
-
-############ Adapted from  https://github.com/moskomule/dda #############
+#########################################################
+# Adapted from https://github.com/aniruddhraghu/ecg_aug #
+#########################################################
 
 
-""" Operations
-
-"""
 from scipy.special import logit
 
 import torch
 from torch import nn
 from torch.distributions import RelaxedBernoulli, Bernoulli
 
-from functional import (rand_temporal_warp, baseline_wander, gaussian_noise, rand_crop, spec_aug, rand_displacement, magnitude_scale)
+from functional import (rand_temporal_warp, baseline_wander, gaussian_noise, rand_crop, spec_aug, rand_displacement,
+                        magnitude_scale)
 
 import warp_ops
 
 
 class _Operation(nn.Module):
-    """ Base class of operation
-
-    :param operation:
-    :param initial_magnitude:
-    :param initial_probability:
-    :param learn_magnitude:
-    :param learn_probability:
-    :param temperature: Temperature for RelaxedBernoulli distribution used during training
-    """
 
     def __init__(self,
                  operation,
@@ -44,7 +31,6 @@ class _Operation(nn.Module):
         initial_probability = [0.9999999] * n_classes
         initial_magnitude = [initial_magnitude] * n_classes
 
-
         if learn_magnitude:
             self.magnitude = nn.Parameter(torch.Tensor(initial_magnitude))
         else:
@@ -58,19 +44,21 @@ class _Operation(nn.Module):
         assert 0 < temperature
         self.temperature = temperature
 
-
-    def forward(self,input, label):
+    def forward(self, input, label):
         mask = self.get_mask(label, input.size(0)).to(input.device)
         mag = self.magnitude.to(input.device).unsqueeze(0)
         # we need a per-ex mag based on the class label. Right now, the mag is a (1x2) tensor.
         # First repeat in BS dimension
         BS, C, L = input.shape
         mag = mag.repeat(BS, 1)
-        # Now it is BS x 2, or BS by class num more generally. Select out the relevant entries.
-        # Also add a sum over all elems to make sure we don't get an error in autograd.
 
         # Adapted to work with multi-label classification
         mag_rel = torch.mean(mag * label, dim=1)
+        print(mag.shape)
+        print(label.shape)
+        print((mag * label).shape)
+        print(mag_rel.shape)
+        quit()
         mag_rel = mag_rel.view(BS, 1, 1)
         transformed = self.operation(input, mag_rel)
         mask = mask.view(BS, 1, 1)
@@ -87,8 +75,6 @@ class _Operation(nn.Module):
             return RelaxedBernoulli(self.temperature, prob).rsample()
         else:
             return Bernoulli(prob).sample()
-
-
 
 
 class NoOp(_Operation):
@@ -121,16 +107,13 @@ class RandTemporalWarp(_Operation):
         # create the warp obj here.
         self.warp_obj = warp_ops.RandWarpAug([input_len])
 
-    def forward(self,input, label):
-
+    def forward(self, input, label):
         mask = self.get_mask(label, input.size(0)).to(input.device)
         mag = self.magnitude.to(input.device).unsqueeze(0)
         # we need a per-ex mag based on the class label. Right now, the mag is a (1x2) tensor.
         # First repeat in BS dimension
         BS, C, L = input.shape
         mag = mag.repeat(BS, 1)
-        # Now it is BS x 2, or BS by class num more generally. Select out the relevant entries.
-        # Also add a sum over all elems to make sure we don't get an error in autograd.
 
         # Adapted to work with multi-label classification
         mag_rel = torch.mean(mag * label, dim=1)
@@ -140,7 +123,6 @@ class RandTemporalWarp(_Operation):
         mask = mask.view(B, 1, 1)
         retval = (mask * transformed + (1 - mask) * input)
         return retval
-
 
 
 class BaselineWander(_Operation):
@@ -166,6 +148,7 @@ class GaussianNoise(_Operation):
         super().__init__(gaussian_noise, initial_magnitude, learn_magnitude,
                          learn_probability, temperature, num_classes)
 
+
 class RandCrop(_Operation):
     def __init__(self,
                  initial_magnitude=0.05,
@@ -178,8 +161,7 @@ class RandCrop(_Operation):
                          learn_probability, temperature, num_classes)
         self.magnitude = torch.Tensor([initial_magnitude])
 
-    def forward(self,input, label):
-
+    def forward(self, input, label):
         mask = self.get_mask(label, input.size(0)).to(input.device)
         mag = self.magnitude.to(input.device)
         transformed = self.operation(input, mag)
@@ -187,7 +169,6 @@ class RandCrop(_Operation):
         mask = mask.view(B, 1, 1)
         retval = (mask * transformed + (1 - mask) * input)
         return retval
-
 
 
 class RandDisplacement(_Operation):
@@ -205,16 +186,13 @@ class RandDisplacement(_Operation):
         # create the warp obj here.
         self.warp_obj = warp_ops.DispAug([input_len])
 
-    def forward(self,input, label):
-
+    def forward(self, input, label):
         mask = self.get_mask(label, input.size(0)).to(input.device)
         mag = self.magnitude.to(input.device).unsqueeze(0)
         # we need a per-ex mag based on the class label. Right now, the mag is a (1x2) tensor.
         # First repeat in BS dimension
         BS, C, L = input.shape
         mag = mag.repeat(BS, 1)
-        # Now it is BS x 2, or BS by class num more generally. Select out the relevant entries.
-        # Also add a sum over all elems to make sure we don't get an error in autograd.
 
         # Adapted to work with multi-label classification
         mag_rel = torch.mean(mag * label, dim=1)
@@ -224,6 +202,7 @@ class RandDisplacement(_Operation):
         mask = mask.view(B, 1, 1)
         retval = (mask * transformed + (1 - mask) * input)
         return retval
+
 
 class MagnitudeScale(_Operation):
     def __init__(self,

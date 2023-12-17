@@ -1,5 +1,8 @@
-import torch
-from torch import nn, Tensor
+#########################################################
+# Adapted from https://github.com/aniruddhraghu/ecg_aug #
+#########################################################
+
+
 from torch.distributions import Categorical, RelaxedOneHotCategorical
 import numpy as np
 from copy import deepcopy
@@ -8,6 +11,7 @@ from task_aug_operations import *
 from torch.autograd import grad
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 class Stage(nn.Module):
     def __init__(self, operations, temperature=0.05):
@@ -24,9 +28,10 @@ class Stage(nn.Module):
             op_mag = wt[op_idx] / wt[op_idx].detach()
             op_weights = torch.zeros(len(self.operations)).to(x.device)
             op_weights[op_idx] = op_mag
-            return torch.stack([op_weights[i]*op(x, y) for i, op in enumerate(self.operations)]).sum(0)
+            return torch.stack([op_weights[i] * op(x, y) for i, op in enumerate(self.operations)]).sum(0)
         else:
             return self.operations[Categorical(logits=self._weights).sample()](x, y)
+
 
 class TaskAug(nn.Module):
     def __init__(self, stage, n_operations=1, batch_first=False):
@@ -49,21 +54,20 @@ class TaskAug(nn.Module):
 
 def full_policy(learn_mag=True, learn_prob=True, n_operations=2, num_classes=2, input_len=256, batch_first=False):
     all_ops = nn.ModuleList([
-        RandTemporalWarp(initial_magnitude=1.0, learn_magnitude=learn_mag,learn_probability=learn_prob, num_classes=num_classes, input_len=input_len),
-        BaselineWander(learn_magnitude=learn_mag,learn_probability=learn_prob, num_classes=num_classes),
-        GaussianNoise(learn_magnitude=learn_mag,learn_probability=learn_prob, num_classes=num_classes),
+        RandTemporalWarp(initial_magnitude=1.0, learn_magnitude=learn_mag, learn_probability=learn_prob,
+                         num_classes=num_classes, input_len=input_len),
+        BaselineWander(learn_magnitude=learn_mag, learn_probability=learn_prob, num_classes=num_classes),
+        GaussianNoise(learn_magnitude=learn_mag, learn_probability=learn_prob, num_classes=num_classes),
         RandCrop(learn_probability=learn_prob, num_classes=num_classes),
-        RandDisplacement(learn_magnitude=learn_mag,learn_probability=learn_prob, num_classes=num_classes, input_len=input_len),
-        MagnitudeScale(learn_magnitude=learn_mag,learn_probability=learn_prob, num_classes=num_classes),
+        RandDisplacement(learn_magnitude=learn_mag, learn_probability=learn_prob, num_classes=num_classes,
+                         input_len=input_len),
+        MagnitudeScale(learn_magnitude=learn_mag, learn_probability=learn_prob, num_classes=num_classes),
         NoOp(),
     ])
     return TaskAug(Stage(all_ops), n_operations=n_operations, batch_first=batch_first)
 
+
 def zero_hypergrad(hyper_params):
-    """
-    :param get_hyper_train:
-    :return:
-    """
     current_index = 0
     for p in hyper_params:
         p_num_params = np.prod(p.shape)
@@ -71,11 +75,14 @@ def zero_hypergrad(hyper_params):
             p.grad = p.grad * 0
         current_index += p_num_params
 
+
 def get_hyper_train_flat(hyper_params):
     return torch.cat([p.view(-1) for p in hyper_params])
 
+
 def gather_flat_grad(loss_grad):
     return torch.cat([p.reshape(-1) for p in loss_grad])
+
 
 def neumann_hyperstep_preconditioner(d_val_loss_d_theta, d_train_loss_d_w, elementary_lr, num_neumann_terms, model):
     preconditioner = d_val_loss_d_theta.detach()
@@ -96,7 +103,8 @@ def neumann_hyperstep_preconditioner(d_val_loss_d_theta, d_train_loss_d_w, eleme
     return elementary_lr * preconditioner
 
 
-def hyper_step(model, aug, hyper_params, train_loader, optimizer, val_loader, elementary_lr, neum_steps, criterion, SEQ_LEN):
+def hyper_step(model, aug, hyper_params, train_loader, optimizer, val_loader, elementary_lr, neum_steps, criterion,
+               SEQ_LEN):
     zero_hypergrad(hyper_params)
     num_weights = sum(p.numel() for p in model.parameters())
 
@@ -105,8 +113,8 @@ def hyper_step(model, aug, hyper_params, train_loader, optimizer, val_loader, el
 
     for batch_idx, (x, y) in enumerate(train_loader):
         x = x.to(device)
-        idx = np.random.randint(0, 1000-SEQ_LEN+1)
-        x = (x[:,:,idx:idx+SEQ_LEN]).to(device)
+        idx = np.random.randint(0, 1000 - SEQ_LEN + 1)
+        x = (x[:, :, idx:idx + SEQ_LEN]).to(device)
         y = y.to(device)
         x = aug(x, y)
 
@@ -132,9 +140,8 @@ def hyper_step(model, aug, hyper_params, train_loader, optimizer, val_loader, el
         d_val_loss_d_theta += gather_flat_grad(grad(val_loss, model.parameters(), retain_graph=False))
         break
 
-    preconditioner = d_val_loss_d_theta
-
-    preconditioner = neumann_hyperstep_preconditioner(d_val_loss_d_theta, d_train_loss_d_w, elementary_lr,neum_steps, model)
+    preconditioner = neumann_hyperstep_preconditioner(d_val_loss_d_theta, d_train_loss_d_w, elementary_lr, neum_steps,
+                                                      model)
 
     indirect_grad = gather_flat_grad(
         grad(d_train_loss_d_w, hyper_params, grad_outputs=preconditioner.view(-1)))
@@ -142,5 +149,3 @@ def hyper_step(model, aug, hyper_params, train_loader, optimizer, val_loader, el
 
     zero_hypergrad(hyper_params)
     return hypergrad
-
-

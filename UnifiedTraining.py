@@ -14,13 +14,13 @@ torch.backends.cudnn.benchmark = True
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Device: {device}")
 
-def preprocess_signals(X_train, X_validation, model_name, SEQ_LEN):
+def preprocess_signals(X_train, X_validation, model_name, SEQ_LEN, use_aug):
     # Standardize data such that mean 0 and variance 1
     ss = StandardScaler()
     ss.fit(np.vstack(X_train).flatten()[:,np.newaxis].astype(float))
 
     # Save Standardizer data
-    with open(f'./Scalers/{model_name}-{SEQ_LEN}standard_scaler.pkl', 'wb') as ss_file:
+    with open(f'./Scalers/{model_name}-{SEQ_LEN}standard_scaler{"" if use_aug else "_noaug"}.pkl', 'wb') as ss_file:
         pickle.dump(ss, ss_file)
 
     return apply_standardizer(X_train, ss), apply_standardizer(X_validation, ss)
@@ -35,7 +35,7 @@ def apply_standardizer(X, ss):
 
 
 def main(
-        model_name = 'rhythm',
+        model_name='rhythm',
         SEQ_LEN = 250,
         BATCH_SIZE = 256,
         LR_MAX = 2e-5,
@@ -64,7 +64,7 @@ def main(
 
     print(X_train.shape, X_test.shape)
     print(y_train.shape, y_test.shape)
-    X_train, X_test = preprocess_signals(X_train, X_test, model_name, SEQ_LEN)
+    X_train, X_test = preprocess_signals(X_train, X_test, model_name, SEQ_LEN, use_aug)
     X_train = torch.from_numpy(X_train).float()
     X_test = torch.from_numpy(X_test).float()
 
@@ -78,7 +78,7 @@ def main(
     ml_auroc = MultilabelAUROC(num_labels=y_train.shape[1], average="macro", thresholds=None)
 
 
-    if not os.path.exists(f'{model_name}_{SEQ_LEN}SeqLenModel.pth') or force_new_model:
+    if not os.path.exists(f'{model_name}_{SEQ_LEN}SeqLenModel{"" if use_aug else "_noaug"}.pth') or force_new_model:
         print('Creating New Model')
         model = ResNet(Bottleneck, [3, 4, 23, 3], num_classes=y_train.shape[1]).float().to(device)
         current_epoch = 0
@@ -164,10 +164,13 @@ def main(
             pbar.set_description(f"Epoch:  {epoch}/{EPOCHS}  |  Train loss: {loss.item():.4f}  |  Train AUC: {train_AUC:.4f}  |  Test AUC: {test_auc}")
 
         if epoch%2 ==0:
-            with open(f'{model_name}_{SEQ_LEN}SeqLenModel.pth', 'wb') as f:
+            with open(f'{model_name}_{SEQ_LEN}SeqLenModel{"" if use_aug else "_noaug"}.pth', 'wb') as f:
                 pickle.dump(model, f)
             with open(f'{model_name}_{SEQ_LEN}losses.pickle', 'wb') as f:
                 pickle.dump((train_losses, test_losses, learning_rates), f)
+
+
+    return train_losses, test_losses, train_AUC, test_auc
 
 
 if __name__ == '__main__':
