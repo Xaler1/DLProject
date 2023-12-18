@@ -1,5 +1,5 @@
 
-import torch, torch.nn as nn, torch.optim as optim
+import torch.optim as optim
 from torchmetrics.classification import MultilabelAUROC
 import numpy as np,  matplotlib.pyplot as plt, pandas as pd, pickle, os
 from ResnetModel import *
@@ -8,6 +8,7 @@ from tqdm import tqdm
 import fire
 from TaskAug import full_policy, zero_hypergrad, hyper_step
 import gc
+import os
 
 torch.backends.cudnn.benchmark = True
 
@@ -18,7 +19,7 @@ def preprocess_signals(X_train, X_validation, model_name, SEQ_LEN, use_aug):
     # Standardize data such that mean 0 and variance 1
     ss = StandardScaler()
     ss.fit(np.vstack(X_train).flatten()[:,np.newaxis].astype(float))
-
+    os.makedirs('./Scalers', exist_ok=True)
     # Save Standardizer data
     with open(f'./Scalers/{model_name}-{SEQ_LEN}standard_scaler{"" if use_aug else "_noaug"}.pkl', 'wb') as ss_file:
         pickle.dump(ss, ss_file)
