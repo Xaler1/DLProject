@@ -12,3 +12,7 @@ runs/*
 src/superclassmodel.pickle
 src/DiagModelResults
 src/superclassmodelres
+src/99_ModelLogs
+*.tar*
+*.pickle*
+*.npz*
